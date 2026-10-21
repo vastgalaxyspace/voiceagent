@@ -1,0 +1,31 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+	servers {
+		timeouts {
+			read_header 5s
+		}
+		max_header_size 16KiB
+	}
+}
+
+{$VOICE_DOMAIN} {
+	# Access logging intentionally disabled: tokens and query strings stay out.
+	request_body {
+		max_size 32KiB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	reverse_proxy api:8000 {
+		# Caddy handles WebSocket upgrade. Its default forwarded headers discard
+		# untrusted incoming values; no trusted_proxies are configured here.
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 25s
+		}
+	}
+}

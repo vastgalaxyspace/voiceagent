@@ -1,0 +1,103 @@
+name: voiceagent
+
+x-runtime: &runtime
+  image: ${VOICEAGENT_IMAGE:?Set a versioned VOICEAGENT_IMAGE}
+  build:
+    context: ..
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 512m
+  cpus: 1.0
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: '3'
+
+services:
+  api:
+    <<: *runtime
+    restart: unless-stopped
+    stop_grace_period: 75s
+    environment:
+      ENVIRONMENT: production
+      PUBLIC_ORIGIN: https://${VOICE_DOMAIN:?Set VOICE_DOMAIN}
+      VOICEAGENT_SECRETS_DIR: /run/secrets
+      REGISTRATION_ENABLED: 'false'
+      ENABLE_API_DOCS: 'false'
+      ENABLE_TEST_HARNESS: 'false'
+      SAVE_REPORTS: 'false'
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-live}
+      LIVE_TOOLS_ENABLED: ${LIVE_TOOLS_ENABLED:-false}
+      USAGE_MODE: ${USAGE_MODE:-unknown}
+      COST_GUARD_ENABLED: 'false'
+    secrets: [database_url, gemini_api_key]
+    healthcheck:
+      test: [CMD, python, -m, scripts.healthcheck]
+      interval: 30s
+      timeout: 7s
+      start_period: 20s
+      retries: 3
+    networks:
+      edge:
+        ipv4_address: 172.30.8.3
+
+  proxy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    environment:
+      VOICE_DOMAIN: ${VOICE_DOMAIN:?Set VOICE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      edge:
+        ipv4_address: 172.30.8.2
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 128
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  # Explicit one-shot operator job: never runs automatically beside the API.
+  operator:
+    <<: *runtime
+    profiles: [ops]
+    environment:
+      ENVIRONMENT: local
+      VOICEAGENT_SECRETS_DIR: /run/secrets
+    secrets: [migration_database_url]
+    command: [python, -m, alembic, upgrade, head]
+    networks: [edge]
+
+secrets:
+  database_url:
+    file: ./secrets/database_url
+  gemini_api_key:
+    file: ./secrets/gemini_api_key
+  migration_database_url:
+    file: ./secrets/migration_database_url
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.30.8.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Voice Agent · Phase 4</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/auth.js" defer></script>
+  <script src="/static/live-transport.js" defer></script>
+  <script src="/static/client.js" defer></script>
+</head>
+<body>
+<main>
+  <p class="eyebrow">LOCAL FEASIBILITY PROTOTYPE</p>
+  <h1>Talk with your voice agent.</h1>
+  <p>Use headphones for the first test. You can interrupt while the assistant speaks.</p>
+  <form id="auth-form">
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required maxlength="254">
+    <label for="password">Password (12–128 characters)</label>
+    <input id="password" type="password" autocomplete="current-password" required minlength="12" maxlength="128">
+    <div class="actions">
+      <button type="submit" id="login">Sign in</button>
+      <button type="submit" id="register">Create account</button>
+    </div>
+  </form>
+  <div id="account" hidden><p>Signed in as <span id="account-email"></span></p><button id="logout" type="button">Sign out</button></div>
+  <p id="auth-status" role="status" aria-live="polite"></p>
+  <form id="settings">
+    <label for="language">Preferred language</label>
+    <select id="language"><option>English and Hindi</option><option>English</option><option>Hindi</option></select>
+    <label for="detail">Response detail</label>
+    <select id="detail"><option value="brief">Brief</option><option value="detailed">Detailed</option></select>
+    <label for="goal">Conversation goal <span>(optional, saved in your preferences)</span></label>
+    <textarea id="goal" maxlength="500" rows="3" placeholder="Help me practise a short introduction."></textarea>
+    <div class="actions"><button id="start" type="submit" disabled>Start conversation</button><button id="stop" type="button" disabled>Stop</button></div>
+  </form>
+  <p id="status" role="status" aria-live="polite">Checking backend…</p>
+  <p id="model" class="muted"></p>
+  <h2>Session measurements</h2>
+  <p class="muted">No audio or transcript is recorded. Usage estimates are not invoices.</p>
+  <button id="download" disabled>Download metadata report</button>
+  <pre id="measurements">A report appears when the conversation ends.</pre>
+</main>
+</body>
+</html>

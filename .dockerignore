@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!requirements-lock.txt
+!alembic.ini
+!app/
+!app/**
+!scripts/
+!scripts/**
+!migrations/
+!migrations/**
+!deploy/
+!deploy/requirements.txt
+**/__pycache__/
+**/*.pyc
+# No .env, secrets, test data, reports, venv, or local database in build context.
