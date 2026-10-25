@@ -96,7 +96,7 @@ class FoundationClient(TestClient):
     def __enter__(self):
         asyncio.run(migrate(self.database))
         super().__enter__()
-        credentials = {'email': 'default@example.com', 'password': 'TestPassword123!'}
+        credentials = {'email': 'default@example.com', 'password': 'Test123!'}
         registered = self.post('/api/v1/auth/register', json=credentials)
         assert registered.status_code == 201, registered.text
         logged_in = self.post('/api/v1/auth/login', json=credentials)

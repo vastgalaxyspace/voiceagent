@@ -172,7 +172,7 @@ def test_new_login_token_cannot_take_over_existing_runtime(client):
     with client.websocket_connect('/ws/live') as first:
         initial = start(first)
         token = client.post('/api/v1/auth/login', json={
-            'email': 'default@example.com', 'password': 'TestPassword123!',
+            'email': 'default@example.com', 'password': 'Test123!',
         }).json()['access_token']
         with client.websocket_connect('/ws/live', headers={'authorization': f'Bearer {token}'}) as other:
             other.send_json({'type': 'start', 'conversation_id': initial['session_id']})
@@ -334,7 +334,7 @@ def test_finalization_outage_is_reported_and_expired_record_is_recovered(client,
 
 def test_stop_endpoint_is_owner_scoped_and_can_cancel_unstarted_record(client):
     row = client.post('/api/v1/conversations', json={}).json()
-    credentials = {'email': 'other@example.com', 'password': 'OtherPassword123!'}
+    credentials = {'email': 'other@example.com', 'password': 'Oth123!'}
     client.post('/api/v1/auth/register', json=credentials)
     token = client.post('/api/v1/auth/login', json=credentials).json()['access_token']
     path = '/api/v1/conversations/' + row['id'] + '/stop'

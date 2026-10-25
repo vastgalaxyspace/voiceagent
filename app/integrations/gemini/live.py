@@ -21,6 +21,17 @@ class GeminiConnection:
                 audio=types.Blob(data=data, mime_type='audio/pcm;rate=16000')
             )
 
+    async def greet(self):
+        # A single initial turn requests real provider speech, rather than client TTS.
+        async with self.send_lock:
+            await self.session.send_client_content(
+                turns={'role': 'user', 'parts': [{'text':
+                    'Begin this new voice conversation now. Say hello warmly in the '
+                    'preferred conversation language, then briefly ask how you can help. '
+                    'Keep the greeting to one or two short sentences.'}]},
+                turn_complete=True,
+            )
+
     async def end_audio(self):
         async with self.send_lock:
             await self.session.send_realtime_input(audio_stream_end=True)
@@ -55,7 +66,24 @@ class GeminiProvider:
         config = types.LiveConnectConfig(
             response_modalities=['AUDIO'], system_instruction=prompt,
             session_resumption=types.SessionResumptionConfig(handle=resume_handle),
+            realtime_input_config=types.RealtimeInputConfig(
+                activity_handling=types.ActivityHandling.START_OF_ACTIVITY_INTERRUPTS,
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=False,
+                    start_of_speech_sensitivity=(types.StartSensitivity.START_SENSITIVITY_LOW
+                        if self.settings.voice_start_sensitivity == 'low'
+                        else types.StartSensitivity.START_SENSITIVITY_HIGH),
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW,
+                    prefix_padding_ms=self.settings.voice_prefix_padding_ms,
+                    silence_duration_ms=self.settings.voice_silence_duration_ms,
+                ),
+            ),
         )
+        # Proactive audio is documented for 3.8 Live on v1beta, not 3.1.
+        # It can decline irrelevant input, but cannot undo a VAD interruption.
+        if (self.settings.voice_proactive_audio and self.settings.gemini_model == 'gemini-3.8-live'
+                and self.settings.gemini_api_version == 'v1beta'):
+            config.proactivity = types.ProactivityConfig(proactive_audio=True)
         if self.settings.live_tools_enabled:
             config.tools = declarations()
         if self.settings.context_compression:

@@ -7,7 +7,7 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.passwords import Passwords
 from app.db.session import Database
-from app.schemas.auth import Credentials
+from app.schemas.auth import RegistrationCredentials
 from app.services.auth import register
 
 
@@ -28,11 +28,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--email', required=True)
     args = parser.parse_args()
-    password = getpass('Password: ')
+    password = getpass('Password (4 to 8 characters): ')
     if password != getpass('Repeat password: '):
         raise SystemExit('Passwords do not match')
     try:
-        credentials = Credentials(email=args.email, password=password)
+        credentials = RegistrationCredentials(email=args.email, password=password)
         asyncio.run(create(credentials))
     except AppError as exc:
         raise SystemExit(exc.code) from None

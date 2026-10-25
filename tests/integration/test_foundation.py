@@ -28,7 +28,7 @@ def client():
 
 
 def second_user(client):
-    credentials = {'email': 'second@example.com', 'password': 'SecondPassword123!'}
+    credentials = {'email': 'second@example.com', 'password': 'Sec123!'}
     assert client.post('/api/v1/auth/register', json=credentials).status_code == 201
     response = client.post('/api/v1/auth/login', json=credentials)
     return {'Authorization': 'Bearer ' + response.json()['access_token']}
@@ -41,7 +41,7 @@ def new_conversation(client, **kwargs):
 
 
 def test_registration_login_and_password_hashing(client):
-    credentials = {'email': 'Alice@EXAMPLE.COM', 'password': 'LongPasswordForAlice!'}
+    credentials = {'email': 'Alice@EXAMPLE.COM', 'password': 'Ali123!'}
     created = client.post('/api/v1/auth/register', json=credentials)
     assert created.status_code == 201
     assert created.json()['email'] == 'alice@example.com'
@@ -61,6 +61,41 @@ def test_registration_login_and_password_hashing(client):
             assert auth.token_hash != token
             assert auth.expires_at.tzinfo is not None
     client.portal.call(inspect)
+
+
+@pytest.mark.parametrize(('password', 'status'), [
+    ('abc', 422), ('abcd', 201), ('abcdefgh', 201), ('abcdefghi', 422),
+])
+def test_registration_password_length_is_four_to_eight_characters(client, password, status):
+    response = client.post('/api/v1/auth/register', json={
+        'email': f'length-{len(password)}@example.com', 'password': password,
+    })
+    assert response.status_code == status
+    if status == 422:
+        assert any('password' in error['loc'] for error in response.json()['details'])
+
+
+def test_legacy_long_password_can_still_sign_in(client):
+    password = 'ExistingPassword123!'
+
+    async def create_legacy_user():
+        password_hash = await client.app.state.passwords.hash(password)
+        async with client.database.sessions.begin() as session:
+            session.add(User(email='legacy@example.com', password_hash=password_hash))
+
+    client.portal.call(create_legacy_user)
+    response = client.post('/api/v1/auth/login', json={
+        'email': 'legacy@example.com', 'password': password,
+    })
+    assert response.status_code == 200
+
+
+def test_openapi_documents_distinct_registration_and_login_password_limits(client):
+    schemas = client.get('/openapi.json').json()['components']['schemas']
+    registration = schemas['RegistrationCredentials']['properties']['password']
+    login = schemas['LoginCredentials']['properties']['password']
+    assert (registration['minLength'], registration['maxLength']) == (4, 8)
+    assert (login['minLength'], login['maxLength']) == (1, 128)
 
 
 def test_invalid_and_unknown_credentials_return_same_safe_error(client):
@@ -96,7 +131,7 @@ def test_expired_and_disabled_accounts_cannot_authenticate(client):
     client.portal.call(expire)
     assert client.get('/api/v1/users/me').status_code == 401
     token = client.post('/api/v1/auth/login', json={
-        'email': 'default@example.com', 'password': 'TestPassword123!',
+        'email': 'default@example.com', 'password': 'Test123!',
     }).json()['access_token']
 
     async def disable():
@@ -108,7 +143,7 @@ def test_expired_and_disabled_accounts_cannot_authenticate(client):
 
 def test_logout_revokes_current_session_only(client):
     extra = client.post('/api/v1/auth/login', json={
-        'email': 'default@example.com', 'password': 'TestPassword123!',
+        'email': 'default@example.com', 'password': 'Test123!',
     }).json()['access_token']
     assert client.post('/api/v1/auth/logout').status_code == 204
     assert client.get('/api/v1/users/me').status_code == 401
@@ -242,7 +277,7 @@ def test_no_database_fails_closed_without_exposing_configuration():
         assert client.get('/health').status_code == 200
         assert client.get('/health/ready').status_code == 503
         assert client.post('/api/v1/auth/register', json={
-            'email': 'new@example.com', 'password': 'NewPassword123!',
+            'email': 'new@example.com', 'password': 'New123!',
         }).json() == {'error': 'database_not_configured'}
 
 
@@ -343,7 +378,7 @@ def test_runtime_role_can_use_api_but_cannot_rewrite_prompt_versions(client):
             })
             with TestClient(create_app(client.app.state.settings, FakeProvider(), database)) as restricted:
                 logged_in = restricted.post('/api/v1/auth/login', json={
-                    'email': 'default@example.com', 'password': 'TestPassword123!',
+                    'email': 'default@example.com', 'password': 'Test123!',
                 })
                 assert logged_in.status_code == 200
                 restricted.headers['Authorization'] = 'Bearer ' + logged_in.json()['access_token']

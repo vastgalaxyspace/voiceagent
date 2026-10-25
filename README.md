@@ -2,11 +2,47 @@
 
 An Android voice conversation application planned with Kotlin, a FastAPI backend, and Gemini Live.
 
+## Voice interruptions and background sound
+
+New and resumed Gemini connections explicitly use automatic speech detection with interruption enabled,
+low speech-start/end sensitivity, 200 ms prefix padding, and 600 ms silence duration. Tune these with
+`VOICE_START_SENSITIVITY` (`low` or `high`), `VOICE_PREFIX_PADDING_MS` (0–500), and
+`VOICE_SILENCE_DURATION_MS` (100–2000). These are initial trial values, not measured guarantees.
+Lower sensitivity reduces accidental starts but can miss soft or very short words such as “stop”.
+More confirmation delays genuine interruption; a longer silence allowance delays the reply.
+The relay and browser still discard queued answer audio on every provider interruption.
+
+`VOICE_PROACTIVE_AUDIO=true` enables relevance-based response suppression on `gemini-3.8-live`
+with `v1beta` only; other model/API combinations omit it. Disable it if legitimate requests are
+being ignored. Voice instructions are appended even to published prompts: prioritize stop/wait and
+new questions, ignore irrelevant sound, and treat standalone “hmm”/“okay” as acknowledgments unless
+they answer a question or confirm a choice. These instructions and proactive audio do not prevent
+all VAD interruptions and cannot undo one after the provider cancels generation. Short acknowledgments,
+TV, other speakers, and echo can still interrupt hands-free mode. There is no speaker identification.
+
+The browser's **Microphone** selector defaults to **Hands-free**. Choose **Hold to talk** for a noisy
+room: hold the button (pointer, Space, or Enter) while speaking, then release it. Released input is
+replaced with silent PCM, so background sound is not forwarded and automatic VAD can finish the turn.
+The assistant's output keeps playing. Release, pointer cancellation, focus loss, tab hiding, reconnect,
+and session cleanup release the hold. Only press for intentional input; sound during a hold can still
+be heard. This is a browser harness feature, not a change to the Android client or WebSocket protocol.
+Echo cancellation, noise suppression, and automatic gain remain requested from the browser.
+
+Restart the backend and refresh the browser to load the changes, then start a new conversation.
+Test headphones vs speakers, silence vs clicks, a deliberate “wait”, pauses inside questions, and TV
+in both microphone modes. Download the metadata report to compare `browser_interruption_events`.
+Live acoustic behavior has to be checked on the actual device; simulated tests do not measure noise
+rejection or interruption latency. Playback stutter without interruption events needs separate diagnosis.
+
 ## Current phase
 
 Phase 8: single-instance production deployment configuration implemented. Includes an HTTPS proxy, a non-root container, file-mounted runtime secrets, strict production settings, bounded authentication/body requests, health checks, administrator drain controls, and backup/restore tooling. Deployment has not been published. The estimated-spend guard remains disabled until live Gemini billing calibration.
 
 Phase 5 follow-up fixes preserve spend reservations for unfinished/unreported turns and drain database maintenance safely during shutdown. Reports distinguish observed partial cost from a complete reported estimate.
+
+New conversations request one brief Gemini greeting in the preferred language. The WebSocket `ready` event advertises `greeting_pending`; checkpoint resumption never requests another greeting. Greeting input/output uses the normal usage and cost reporting.
+
+New account passwords must contain 4–8 characters. Login continues to accept legacy passwords up to 128 characters. Existing hashes and accounts require no migration. Restart the backend after updating these Python sources; container deployments require an updated image and redeployment. Finish active conversations first because checkpoints are held in process memory.
 
 Read the [Phase 1 specification](docs/phase-1-specification.md) for the proposed scope, architecture, cost model, acceptance targets, and decisions to revisit.
 
@@ -39,6 +75,8 @@ Use the Phase 3 guide to grant the runtime database role its limited permissions
 ```
 
 Open http://127.0.0.1:8000. Create an account or sign in, use headphones, click Start, and speak after the Listening status. API documentation is at `/docs`. Keep the single-worker pilot local. Live sessions can incur provider charges.
+
+For local audio-output debugging, set `SAVE_OUTPUT_AUDIO=true` before starting the server. Each completed assistant turn is written as a playable 24 kHz mono WAV file under `.local/output_audio`. This is disabled by default and forbidden by the production configuration because the files contain conversation audio.
 
 Windows convenience commands (from the project root):
 

@@ -7,7 +7,7 @@ from pydantic import Field, HttpUrl, SecretStr, TypeAdapter, field_validator, mo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
-from app.core.paths import PROJECT_ROOT, REPORTS_ROOT
+from app.core.paths import OUTPUT_AUDIO_ROOT, PROJECT_ROOT, REPORTS_ROOT
 from app.core.pricing import RATES
 
 
@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr = SecretStr('')
     gemini_model: str = 'gemini-3.8-live'
     gemini_api_version: str = 'v1beta'
+    voice_start_sensitivity: Literal['low', 'high'] = 'low'
+    voice_prefix_padding_ms: int = Field(default=200, ge=0, le=500)
+    voice_silence_duration_ms: int = Field(default=600, ge=100, le=2000)
+    voice_proactive_audio: bool = True
     session_max_seconds: float = Field(default=300, gt=0, le=600)
     session_idle_seconds: float = Field(default=60, gt=0, le=600)
     provider_setup_seconds: float = Field(default=20, gt=0, le=60)
@@ -38,6 +42,8 @@ class Settings(BaseSettings):
     context_compression: bool = False
     save_reports: bool = False
     reports_directory: Path = REPORTS_ROOT
+    save_output_audio: bool = False
+    output_audio_directory: Path = OUTPUT_AUDIO_ROOT
     usage_mode: Literal['unknown', 'per_response', 'cumulative'] = 'unknown'
     database_url: SecretStr = SecretStr('')
     migration_database_url: SecretStr = SecretStr('')
@@ -91,8 +97,9 @@ class Settings(BaseSettings):
                 raise ValueError('Production requires a Gemini credential')
             if self.migration_database_url.get_secret_value():
                 raise ValueError('Owner credentials must not be loaded by the production runtime')
-            if self.registration_enabled or self.enable_api_docs or self.enable_test_harness or self.save_reports:
-                raise ValueError('Production requires registration, API docs, test harness and file reports disabled')
+            if (self.registration_enabled or self.enable_api_docs or self.enable_test_harness
+                    or self.save_reports or self.save_output_audio):
+                raise ValueError('Production requires registration, API docs, test harness and local file output disabled')
         if self.lease_heartbeat_seconds * 3 > self.lease_seconds:
             raise ValueError('Lease duration must be at least three heartbeat intervals')
         if self.minimum_session_seconds > self.session_max_seconds:
@@ -126,7 +133,7 @@ class Settings(BaseSettings):
             raise ValueError('Use postgresql+asyncpg:// (or sqlite+aiosqlite:// for tests)')
         return value
 
-    @field_validator('reports_directory')
+    @field_validator('reports_directory', 'output_audio_directory')
     @classmethod
-    def resolve_reports_directory(cls, path: Path) -> Path:
+    def resolve_local_directory(cls, path: Path) -> Path:
         return path if path.is_absolute() else PROJECT_ROOT / path

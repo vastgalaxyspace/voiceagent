@@ -43,7 +43,7 @@ def entry(client, title='Kotlin', content='PRIVATE_KNOWLEDGE coroutine reference
 
 
 def second_user(client):
-    credentials = {'email': 'other@example.com', 'password': 'OtherPassword123!'}
+    credentials = {'email': 'other@example.com', 'password': 'Oth123!'}
     assert client.post('/api/v1/auth/register', json=credentials).status_code == 201
     token = client.post('/api/v1/auth/login', json=credentials).json()['access_token']
     return {'Authorization': 'Bearer ' + token}

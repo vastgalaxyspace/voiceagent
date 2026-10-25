@@ -13,7 +13,7 @@ Push-Location -LiteralPath $projectRoot
 try {
     & $pythonExecutable -m pytest -q
     if ($LASTEXITCODE -ne 0) { throw 'Python tests failed.' }
-    & node --test tests/javascript/audio-worklet.test.cjs tests/javascript/auth.test.cjs tests/javascript/live-transport.test.cjs
+    & node --test tests/javascript/audio-worklet.test.cjs tests/javascript/auth.test.cjs tests/javascript/live-transport.test.cjs tests/javascript/microphone-gate.test.cjs
     if ($LASTEXITCODE -ne 0) { throw 'Audio worklet tests failed.' }
     & node --check tools/voice_client/client.js
     if ($LASTEXITCODE -ne 0) { throw 'Voice client syntax check failed.' }
@@ -23,6 +23,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Live transport syntax check failed.' }
     & node --check tools/voice_client/capture-worklet.js
     if ($LASTEXITCODE -ne 0) { throw 'Audio worklet syntax check failed.' }
+    & node --check tools/voice_client/microphone-gate.js
+    if ($LASTEXITCODE -ne 0) { throw 'Microphone gate syntax check failed.' }
     & $pythonExecutable -m pip check
     if ($LASTEXITCODE -ne 0) { throw 'Dependency check failed.' }
 }

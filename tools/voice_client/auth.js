@@ -30,6 +30,9 @@
     const credentials = {email: element('email').value, password: element('password').value};
     try {
       if (event.submitter?.id === 'register') {
+        if (credentials.password.length < 4 || credentials.password.length > 8) {
+          throw new Error('New passwords must contain 4 to 8 characters.');
+        }
         await api('/api/v1/auth/register', {method: 'POST', body: JSON.stringify(credentials)});
       }
       const result = await api('/api/v1/auth/login', {method: 'POST', body: JSON.stringify(credentials)});

@@ -1,5 +1,5 @@
 from app.core.config import Settings
-from app.core.paths import PROJECT_ROOT, VOICE_CLIENT_ROOT
+from app.core.paths import OUTPUT_AUDIO_ROOT, PROJECT_ROOT, VOICE_CLIENT_ROOT
 
 
 def test_default_paths_do_not_depend_on_working_directory(monkeypatch, tmp_path):
@@ -7,12 +7,18 @@ def test_default_paths_do_not_depend_on_working_directory(monkeypatch, tmp_path)
     settings = Settings(_env_file=None)
     assert Settings.model_config['env_file'] == PROJECT_ROOT / '.env'
     assert settings.reports_directory == PROJECT_ROOT / 'reports'
+    assert settings.output_audio_directory == OUTPUT_AUDIO_ROOT
     assert (VOICE_CLIENT_ROOT / 'index.html').is_file()
 
 
 def test_relative_report_directory_is_anchored_to_project():
     settings = Settings(_env_file=None, reports_directory='reports/benchmark')
     assert settings.reports_directory == PROJECT_ROOT / 'reports/benchmark'
+
+
+def test_relative_output_audio_directory_is_anchored_to_project():
+    settings = Settings(_env_file=None, output_audio_directory='.local/test-audio')
+    assert settings.output_audio_directory == PROJECT_ROOT / '.local/test-audio'
 
 
 def test_cost_guard_requires_verified_usage_and_priced_model():

@@ -79,7 +79,7 @@ Server controls:
 | ended | Read the final metadata report and clean up |
 | error | Stop retrying this rejected attachment; display its safe code |
 
-`ready` and `resumed` include `remaining_seconds`, `reconnect_grace_seconds`, and `heartbeat_interval_seconds`, in addition to audio formats and session/model identifiers. The recommended heartbeat interval is at most five seconds and adapts to the transport timeout. `remaining_seconds` is informational; server-side deadlines remain authoritative.
+`ready` and `resumed` include `remaining_seconds`, `reconnect_grace_seconds`, and `heartbeat_interval_seconds`, in addition to audio formats and session/model identifiers. A new conversation's `ready` event also sets `greeting_pending: true` while the real provider produces its one-time greeting in the preferred conversation language. Clients should pause microphone upload until that greeting's `turn_complete` and queued audio playback have finished. Resumed connections never request another greeting and report `greeting_pending: false`. Greeting text input and audio output pass through the normal provider usage and cost accounting. The recommended heartbeat interval is at most five seconds and adapts to the transport timeout. `remaining_seconds` is informational; server-side deadlines remain authoritative.
 
 Clients send `{"type":"ping"}` for transport liveness. Heartbeats and silent audio do not renew user idle time. A silent/dead transport is detached after its timeout and provider audio is stopped. The watchdog remains active while awaiting reattachment or provider setup.
 

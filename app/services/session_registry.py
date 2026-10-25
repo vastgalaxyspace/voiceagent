@@ -19,6 +19,7 @@ from app.services.live_session import Relay, SessionEnd
 from app.services.prompt_builder import compose_prompt
 from app.services.session_channel import SessionChannel
 from app.services.usage import Measurements
+from app.storage.output_audio import OutputAudioRecorder
 
 logger = logging.getLogger('voiceagent')
 
@@ -153,6 +154,9 @@ class SessionRegistry:
             channel.attach(socket)
             measurements = Measurements(session_settings.gemini_model, session_settings.usage_mode, key)
             provider = self.state.provider if self.state.provider_injected else GeminiProvider(session_settings)
+            output_audio_recorder = (OutputAudioRecorder(
+                session_settings.output_audio_directory, key,
+            ) if session_settings.save_output_audio else None)
 
             async def on_state(value):
                 try:
@@ -177,7 +181,8 @@ class SessionRegistry:
                           auth_stop=stop, auth_seconds=max(0, (principal.session.expires_at - utcnow()).total_seconds()),
                           on_state=on_state,
                           max_cost_usd=float(allocation.cost_usd) if allocation.cost_usd else None,
-                          cost_margin_ratio=float(self.settings.cost_guard_margin_ratio))
+                          cost_margin_ratio=float(self.settings.cost_guard_margin_ratio),
+                          output_audio_recorder=output_audio_recorder)
             managed = ManagedSession(conversation, principal, channel, relay, stop,
                                      monotonic() + max(0, (conversation.lease_expires_at - utcnow()).total_seconds()),
                                      allocation)

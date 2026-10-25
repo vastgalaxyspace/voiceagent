@@ -36,6 +36,7 @@ def app_for_transport(**overrides):
     {'database_url': 'postgresql+asyncpg://runtime:synthetic@db/voice?ssl=require'},
     {'migration_database_url': 'postgresql+asyncpg://owner:secret@db/voice'},
     {'registration_enabled': True}, {'enable_api_docs': True}, {'enable_test_harness': True}, {'save_reports': True},
+    {'save_output_audio': True},
 ])
 def test_production_rejects_unsafe_configuration(overrides):
     with pytest.raises(ValidationError):
@@ -61,7 +62,7 @@ def test_production_https_host_origin_and_hidden_surfaces():
     for path in ('/', '/docs', '/openapi.json', '/static/client.js'):
         assert client.get(path).status_code == 404
     assert client.post('/api/v1/auth/register', json={
-        'email': 'tester@example.com', 'password': 'SyntheticPassword123!',
+        'email': 'tester@example.com', 'password': 'Syn123!',
     }).json()['error'] == 'registration_disabled'
 
 

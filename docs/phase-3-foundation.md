@@ -11,7 +11,7 @@ Implemented on 17 October 2026. This phase adds persistent identities, revocable
 - FastAPI remains a modular application with separate routes, schemas, services, repositories, database models, and provider adapters.
 - PostgreSQL is the application database; SQLAlchemy's asyncpg driver uses a bounded connection pool. SQLite is supported as a lightweight test backend, not the recommended application database.
 - Registration and login use JSON email/password credentials. This is application session authentication, not a third-party OAuth or JWT implementation.
-- Argon2id hashes passwords with 19 MiB memory, two iterations, and one lane. Verification is offloaded to a bounded thread pool. Unknown-account login performs dummy verification to reduce timing differences. Passwords have a 12–128-character bound.
+- Argon2id hashes passwords with 19 MiB memory, two iterations, and one lane. Verification is offloaded to a bounded thread pool. Unknown-account login performs dummy verification to reduce timing differences. New passwords must contain 4–8 characters. Login accepts non-empty passwords up to 128 characters so accounts created under the former 12–128-character rule remain usable.
 - Bearer tokens contain 32 random bytes encoded in URL-safe form. Only their SHA-256 digest is stored, together with an expiration and optional revocation timestamp. Tokens default to 24 hours, and logout revokes the current session. Re-login issues a new session; refresh tokens are outside this phase.
 - The browser holds its token only in memory and clears its password field after submission. Kotlin can send an Authorization header; browser WebSockets authenticate in their first frame. Tokens never appear in WebSocket URLs.
 - All conversation queries filter by the authenticated owner. Missing and foreign conversation IDs return the same 404. Requests cannot select another user's identity, a model, or system instructions.
@@ -88,7 +88,7 @@ Existing Gemini, timeout, report, and usage settings continue to apply. Configur
 | GET /api/v1/conversations/{id}/report | Bearer | Owner-only final metadata report; 409 until available |
 | GET /health/ready | None | Database/migration readiness |
 
-Register/login bodies contain `email` and `password`. Email matching is case-insensitive by normalization. Login returns `access_token`, `token_type: bearer`, and UTC `expires_at`. Send the token as `Authorization: Bearer <token>` on authenticated HTTP requests.
+Register/login bodies contain `email` and `password`. Registration validates passwords at 4–8 characters; login accepts 1–128 characters for backward compatibility. Email matching is case-insensitive by normalization. Login returns `access_token`, `token_type: bearer`, and UTC `expires_at`. Send the token as `Authorization: Bearer <token>` on authenticated HTTP requests.
 
 Preferences accept `language` (`English`, `Hindi`, or `English and Hindi`), `response_detail` (`brief` or `detailed`), and `goal` (up to 500 characters). Omitted/null patch values leave fields unchanged. An empty goal clears it. The goal is persisted personal data; it does not grant model tool permissions or override system instructions.
 

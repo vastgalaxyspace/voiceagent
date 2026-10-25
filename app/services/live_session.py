@@ -1,6 +1,7 @@
 """Full duplex relay with bounded, checkpoint-only provider resumption."""
 import asyncio
 import json
+import logging
 from collections import deque
 from contextlib import AsyncExitStack
 from time import monotonic
@@ -11,6 +12,8 @@ from app.core.config import Settings
 from app.integrations.gemini.retry import transient
 from app.services.usage import Measurements
 from app.services.live_tools import ARGUMENTS, ToolConnection, ToolSessionEnd
+
+logger = logging.getLogger('voiceagent')
 
 
 class SessionEnd(Exception):
@@ -57,7 +60,8 @@ class Outbox:
 class Relay:
     def __init__(self, channel, settings: Settings, provider, prompt: str,
                  measurements: Measurements, *, auth_stop=None, auth_seconds=None, on_state=None,
-                 max_cost_usd: float | None = None, cost_margin_ratio: float = 0, tool_session=None):
+                 max_cost_usd: float | None = None, cost_margin_ratio: float = 0, tool_session=None,
+                 output_audio_recorder=None):
         self.channel, self.settings, self.provider = channel, settings, provider
         self.prompt, self.measurements = prompt, measurements
         self.outbox = Outbox()
@@ -74,10 +78,20 @@ class Relay:
         self.cost_margin_ratio = cost_margin_ratio
         self.cost_usage_observed_at = None
         self.tool_session = tool_session
+        self.output_audio_recorder = output_audio_recorder
 
     async def state(self, value):
         if self.on_state is not None:
             await self.on_state(value)
+
+    async def save_output_audio(self, *, partial=False):
+        if self.output_audio_recorder is None:
+            return
+        try:
+            await self.output_audio_recorder.complete_turn(partial=partial)
+        except OSError:
+            logger.warning('Could not save debug output audio for session %s', self.measurements.id)
+            self.output_audio_recorder = None
 
     def flush_audio(self):
         self.ready = False
@@ -195,15 +209,19 @@ class Relay:
                     self.measurements.interruptions += 1
                     self.playback_until = monotonic()
                     self.outbox.interrupt()
+                    await self.save_output_audio(partial=True)
                 if content.model_turn and not content.interrupted:
                     for part in content.model_turn.parts or []:
                         blob = part.inline_data
                         if blob and blob.data and (blob.mime_type or '').startswith('audio/pcm'):
                             self.measurements.output_bytes += len(blob.data)
                             self.playback_until = max(self.playback_until, monotonic()) + len(blob.data) / 48000
+                            if self.output_audio_recorder is not None:
+                                self.output_audio_recorder.append(blob.data)
                             self.outbox.put(blob.data)
                 if content.turn_complete:
                     self.measurements.turns += 1
+                    await self.save_output_audio()
                     self.outbox.put({'type': 'turn_complete'})
             if message.go_away is not None:
                 raise Reconnect('provider_go_away')
@@ -236,7 +254,9 @@ class Relay:
             self.ready = self.has_ready = True
             if self.cost_usage_observed_at is None:
                 self.cost_usage_observed_at = monotonic()
+            greeting_pending = first and callable(getattr(connection, 'greet', None))
             self.outbox.put({
+                'greeting_pending': greeting_pending,
                 'type': 'ready' if first else 'resumed', 'protocol_version': 3,
                 'session_id': self.measurements.id, 'model': self.settings.gemini_model,
                 'input': {'encoding': 'pcm_s16le', 'sample_rate': 16000, 'channels': 1},
@@ -247,6 +267,12 @@ class Relay:
                 'heartbeat_interval_seconds': min(5, self.settings.client_transport_timeout_seconds / 3),
                 'tools': list(ARGUMENTS) if self.tool_session else [],
             })
+            if greeting_pending:
+                # Count the prompt as provider input before awaiting transmission.
+                # Never repeat it on checkpoint resumption or app reattachment.
+                self.measurements.mark_input_activity()
+                async with asyncio.timeout(self.settings.io_timeout_seconds):
+                    await connection.greet()
             tools = ToolConnection(self.tool_session, connection, self.outbox) if self.tool_session else None
             if tools is not None:
                 tasks.add(asyncio.create_task(tools.run()))
@@ -361,6 +387,8 @@ class Relay:
                 finally:
                     if self.tool_session is not None:
                         self.tool_session.clear()
+                    if self.output_audio_recorder is not None:
+                        await self.save_output_audio(partial=True)
         if reason == 'cost_tracking_unavailable':
             self.measurements.incomplete_breakdown = True
         return self.measurements.summary(reason)

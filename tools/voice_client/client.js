@@ -4,6 +4,22 @@ let transport, conversationId, stream, capture, playback, microphone, processor,
 let ready = false, starting = false, finishing = false, nextPlayback = 0, lastReport;
 let playbackNodes = new Set();
 let interruptions = 0;
+const microphoneGate = new window.MicrophoneGate();
+
+function setTalkHeld(held) {
+  microphoneGate.held = held && ready && !starting && !finishing;
+  $('talk').setAttribute('aria-pressed', String(microphoneGate.held));
+  $('talk').textContent = microphoneGate.held ? 'Listening — release when finished' : 'Hold to talk';
+}
+function updateMicrophoneMode() {
+  microphoneGate.setMode($('microphone-mode').value);
+  setTalkHeld(false);
+  $('talk').hidden = microphoneGate.mode !== 'hold-to-talk';
+}
+function syncTalkState() {
+  setTalkHeld(false);
+  $('talk').disabled = !ready;
+}
 
 function status(message) { $('status').textContent = message; }
 function clearPlayback() {
@@ -12,6 +28,7 @@ function clearPlayback() {
 }
 async function releaseAudio() {
   ready = false;
+  syncTalkState();
   if (processor) { processor.port.onmessage = null; processor.disconnect(); }
   microphone?.disconnect(); mute?.disconnect();
   stream?.getTracks().forEach(track => track.stop());
@@ -55,6 +72,7 @@ async function finished(report) {
 }
 function requestStop(message = 'Stopping…') {
   status(message); ready = false; clearPlayback();
+  syncTalkState();
   stream?.getTracks().forEach(track => track.stop());
   // HTTP stop also reaches a runtime while its audio socket is disconnected.
   if (conversationId && window.voiceAuth.getToken()) {
@@ -75,6 +93,7 @@ function control(message) {
   } else if (message.type === 'error') {
     ready = false; clearPlayback(); status(`Connection ended: ${message.code}`);
   }
+  if (['ready', 'resumed', 'reconnecting', 'error'].includes(message.type)) syncTalkState();
 }
 
 $('settings').addEventListener('submit', async event => {
@@ -107,7 +126,7 @@ $('settings').addEventListener('submit', async event => {
       conversationId, token: window.voiceAuth.getToken(),
       onAudio: playPCM, onControl: control, onFinished: finished,
     });
-    processor.port.onmessage = event => transport?.sendAudio(event.data);
+    processor.port.onmessage = event => transport?.sendAudio(microphoneGate.packet(event.data));
     status('Connecting to your voice assistant…'); $('stop').disabled = false;
     transport.start();
   } catch (error) {
@@ -121,6 +140,23 @@ $('settings').addEventListener('submit', async event => {
   } finally { starting = false; }
 });
 $('stop').onclick = () => requestStop();
+$('microphone-mode').onchange = updateMicrophoneMode;
+$('talk').addEventListener('pointerdown', event => {
+  if (event.button !== 0 || !ready) return;
+  $('talk').setPointerCapture(event.pointerId); setTalkHeld(true);
+});
+for (const name of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur']) {
+  $('talk').addEventListener(name, () => setTalkHeld(false));
+}
+$('talk').addEventListener('keydown', event => {
+  if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); setTalkHeld(true); }
+});
+$('talk').addEventListener('keyup', event => {
+  if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); setTalkHeld(false); }
+});
+window.addEventListener('blur', () => setTalkHeld(false));
+document.addEventListener('visibilitychange', () => { if (document.hidden) setTalkHeld(false); });
+updateMicrophoneMode();
 $('download').onclick = () => {
   if (!lastReport) return;
   const url = URL.createObjectURL(new Blob([JSON.stringify(lastReport, null, 2)], {type: 'application/json'}));

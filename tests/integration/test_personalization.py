@@ -70,7 +70,7 @@ def test_memory_requires_opt_in_and_has_versioned_edits_and_forget(client):
 def test_memory_is_private_and_foreign_ids_match_missing_ids(client):
     enable(client)
     row = remember(client, content='PRIVATE_MEMORY_TEXT')
-    credentials = {'email': 'second@example.com', 'password': 'SecondPassword123!'}
+    credentials = {'email': 'second@example.com', 'password': 'Sec123!'}
     assert client.post('/api/v1/auth/register', json=credentials).status_code == 201
     token = client.post('/api/v1/auth/login', json=credentials).json()['access_token']
     headers = {'Authorization': 'Bearer ' + token}

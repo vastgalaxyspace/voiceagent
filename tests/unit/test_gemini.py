@@ -50,6 +50,15 @@ async def test_real_adapter_config_and_context_lifecycle(monkeypatch, tools_enab
     assert seen['config'].session_resumption.handle is None
     assert seen['config'].context_window_compression.sliding_window.target_tokens == 8000
     assert seen['closed']
+    realtime = seen['config'].realtime_input_config
+    assert realtime.activity_handling.value == 'START_OF_ACTIVITY_INTERRUPTS'
+    detection = realtime.automatic_activity_detection
+    assert detection.disabled is False
+    assert detection.start_of_speech_sensitivity.value == 'START_SENSITIVITY_LOW'
+    assert detection.end_of_speech_sensitivity.value == 'END_SENSITIVITY_LOW'
+    assert detection.prefix_padding_ms == 200
+    assert detection.silence_duration_ms == 600
+    assert seen['config'].proactivity.proactive_audio is True
     if tools_enabled:
         declarations = seen['config'].tools[0].function_declarations
         assert {item.name for item in declarations} == {'search_knowledge', 'get_knowledge_entry', 'get_usage_allowance'}

@@ -9,7 +9,7 @@ from app.core.passwords import Passwords, token_digest
 from app.db.base import utcnow
 from app.db.models import AuthSession, User
 from app.repositories import auth_sessions, users
-from app.schemas.auth import Credentials, TokenResponse
+from app.schemas.auth import LoginCredentials, RegistrationCredentials, TokenResponse
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,7 @@ class Principal:
     session: AuthSession
 
 
-async def register(database, passwords: Passwords, credentials: Credentials) -> User:
+async def register(database, passwords: Passwords, credentials: RegistrationCredentials) -> User:
     password_hash = await passwords.hash(credentials.password.get_secret_value())
     try:
         async with database.sessions.begin() as session:
@@ -27,7 +27,7 @@ async def register(database, passwords: Passwords, credentials: Credentials) -> 
         raise AppError('account_already_exists', 409) from None
 
 
-async def login(database, passwords: Passwords, credentials: Credentials, hours: int) -> TokenResponse:
+async def login(database, passwords: Passwords, credentials: LoginCredentials, hours: int) -> TokenResponse:
     async with database.sessions() as session:
         user = await users.by_email(session, str(credentials.email))
     # Hashing/verification never runs while holding a database connection.

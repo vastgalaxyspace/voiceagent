@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/auth.js" defer></script>
   <script src="/static/live-transport.js" defer></script>
+  <script src="/static/microphone-gate.js" defer></script>
   <script src="/static/client.js" defer></script>
 </head>
 <body>
@@ -16,8 +17,8 @@
   <form id="auth-form">
     <label for="email">Email</label>
     <input id="email" type="email" autocomplete="username" required maxlength="254">
-    <label for="password">Password (12–128 characters)</label>
-    <input id="password" type="password" autocomplete="current-password" required minlength="12" maxlength="128">
+    <label for="password">Password (new accounts: 4–8 characters)</label>
+    <input id="password" type="password" autocomplete="current-password" required minlength="1" maxlength="128">
     <div class="actions">
       <button type="submit" id="login">Sign in</button>
       <button type="submit" id="register">Create account</button>
@@ -32,8 +33,12 @@
     <select id="detail"><option value="brief">Brief</option><option value="detailed">Detailed</option></select>
     <label for="goal">Conversation goal <span>(optional, saved in your preferences)</span></label>
     <textarea id="goal" maxlength="500" rows="3" placeholder="Help me practise a short introduction."></textarea>
+    <label for="microphone-mode">Microphone</label>
+    <select id="microphone-mode"><option value="hands-free">Hands-free — speak to interrupt</option><option value="hold-to-talk">Hold to talk — for noisy rooms</option></select>
+    <p class="muted">Hands-free reduces brief noise triggers. Nearby speech and “hmm” or “okay” may still interrupt. In hold-to-talk mode, hold the button only when you want to speak.</p>
     <div class="actions"><button id="start" type="submit" disabled>Start conversation</button><button id="stop" type="button" disabled>Stop</button></div>
   </form>
+  <button id="talk" type="button" hidden disabled aria-pressed="false">Hold to talk</button>
   <p id="status" role="status" aria-live="polite">Checking backend…</p>
   <p id="model" class="muted"></p>
   <h2>Session measurements</h2>
