@@ -11,7 +11,8 @@ from tests.helpers.fakes import settings
 
 
 @pytest.mark.parametrize('overrides,proactive', [
-    ({}, True),
+    ({}, False),
+    ({'voice_proactive_audio': True}, True),
     ({'voice_proactive_audio': False}, False),
     ({'gemini_model': 'gemini-3.1-flash-live-preview'}, False),
     ({'gemini_api_version': 'v1alpha'}, False),

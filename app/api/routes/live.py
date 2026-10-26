@@ -40,7 +40,8 @@ async def live(ws: WebSocket):
             token = start.access_token.get_secret_value() if start.access_token else None
         principal = await auth.authenticate(state.database, token)
         await conversations.get_owned(state.database, principal.user.id, start.conversation_id)
-        managed = await state.sessions.attach(ws, principal, start.conversation_id, token)
+        managed = await state.sessions.attach(ws, principal, start.conversation_id, token,
+                                              speech_detection=start.speech_detection)
         await state.sessions.serve(ws, managed)
     except AppError as exc:
         try:

@@ -61,7 +61,7 @@ class Relay:
     def __init__(self, channel, settings: Settings, provider, prompt: str,
                  measurements: Measurements, *, auth_stop=None, auth_seconds=None, on_state=None,
                  max_cost_usd: float | None = None, cost_margin_ratio: float = 0, tool_session=None,
-                 output_audio_recorder=None):
+                 output_audio_recorder=None, client_vad=False):
         self.channel, self.settings, self.provider = channel, settings, provider
         self.prompt, self.measurements = prompt, measurements
         self.outbox = Outbox()
@@ -79,6 +79,8 @@ class Relay:
         self.cost_usage_observed_at = None
         self.tool_session = tool_session
         self.output_audio_recorder = output_audio_recorder
+        self.client_vad = client_vad
+        self.client_speaking = False
 
     async def state(self, value):
         if self.on_state is not None:
@@ -95,6 +97,7 @@ class Relay:
 
     def flush_audio(self):
         self.ready = False
+        self.client_speaking = False
         self.playback_until = monotonic()
         self.outbox.reset()
         while not self.inbox.empty():
@@ -124,6 +127,8 @@ class Relay:
                         continue
                     raise SessionEnd('invalid_audio')
                 try:
+                    if self.client_vad and not self.client_speaking:
+                        raise SessionEnd('audio_outside_activity')
                     self.inbox.put_nowait((audio, monotonic()))
                 except asyncio.QueueFull:
                     raise SessionEnd('input_backpressure') from None
@@ -143,7 +148,20 @@ class Relay:
                 if control == {'type': 'ping'}:
                     self.outbox.put({'type': 'pong'})
                     continue
-                if control != {'type': 'audio_end'}:
+                if self.client_vad and control in ({'type': 'speech_start'}, {'type': 'speech_end'}):
+                    if not self.ready:
+                        continue
+                    starting = control['type'] == 'speech_start'
+                    if starting == self.client_speaking:
+                        raise SessionEnd('invalid_activity_sequence')
+                    self.client_speaking = starting
+                    self.last_activity = monotonic()
+                    try:
+                        self.inbox.put_nowait((control['type'], monotonic()))
+                    except asyncio.QueueFull:
+                        raise SessionEnd('input_backpressure') from None
+                    continue
+                if control != {'type': 'audio_end'} or self.client_vad:
                     raise SessionEnd('invalid_message')
                 if not self.ready:
                     continue
@@ -165,7 +183,11 @@ class Relay:
             audio, received = await self.inbox.get()
             async with asyncio.timeout(self.settings.io_timeout_seconds):
                 self.measurements.mark_input_activity()
-                if audio is None:
+                if audio == 'speech_start':
+                    await connection.activity_start()
+                elif audio == 'speech_end':
+                    await connection.activity_end()
+                elif audio is None:
                     await connection.end_audio()
                 else:
                     await connection.send_audio(audio)
@@ -242,6 +264,7 @@ class Relay:
             if detached in done:
                 raise Reconnect('client_disconnected')
             connection = opening.result()
+            self.client_speaking = False
             self.measurements.connection_index += 1
             await self.state('active')
             first = not self.has_ready
@@ -260,6 +283,7 @@ class Relay:
                 'type': 'ready' if first else 'resumed', 'protocol_version': 3,
                 'session_id': self.measurements.id, 'model': self.settings.gemini_model,
                 'input': {'encoding': 'pcm_s16le', 'sample_rate': 16000, 'channels': 1},
+                'speech_detection': 'client' if self.client_vad else 'server',
                 'output': {'encoding': 'pcm_s16le', 'sample_rate': 24000, 'channels': 1},
                 'max_seconds': self.settings.session_max_seconds,
                 'remaining_seconds': max(0, self.settings.session_max_seconds - (monotonic() - self.measurements.started)),
@@ -311,6 +335,9 @@ class Relay:
             except ToolSessionEnd as exc:
                 raise SessionEnd(exc.reason) from None
             except Exception as exc:
+                # Keep diagnostics useful without logging provider messages, keys, or audio.
+                logger.warning('Provider connection failed: exception=%s code=%s',
+                               type(exc).__name__, getattr(exc, 'code', None))
                 if not isinstance(exc, Reconnect) and not transient(exc):
                     raise SessionEnd('resume_rejected' if handle else 'provider_error') from None
                 reason = exc.reason if isinstance(exc, Reconnect) else 'provider_disconnected'

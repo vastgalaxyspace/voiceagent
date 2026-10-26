@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     voice_start_sensitivity: Literal['low', 'high'] = 'low'
     voice_prefix_padding_ms: int = Field(default=200, ge=0, le=500)
     voice_silence_duration_ms: int = Field(default=600, ge=100, le=2000)
-    voice_proactive_audio: bool = True
+    # Some Live endpoints reject this optional setup field entirely.
+    voice_proactive_audio: bool = False
     session_max_seconds: float = Field(default=300, gt=0, le=600)
     session_idle_seconds: float = Field(default=60, gt=0, le=600)
     provider_setup_seconds: float = Field(default=20, gt=0, le=60)
@@ -59,7 +60,7 @@ class Settings(BaseSettings):
     lease_heartbeat_seconds: float = Field(default=5, ge=.1, le=30)
     daily_connected_seconds: int = Field(default=900, ge=60, le=86400)
     minimum_session_seconds: float = Field(default=30, ge=.1, le=600)
-    conversation_creations_per_hour: int = Field(default=10, ge=1, le=100)
+    conversation_creations_per_hour: int = Field(default=10, ge=0, le=100)
     cost_guard_enabled: bool = False
     daily_estimated_cost_limit_usd: Decimal = Field(default=Decimal('0.60'), ge=Decimal('0.00000001'), le=1000,
                                                   decimal_places=8)

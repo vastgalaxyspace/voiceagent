@@ -33,6 +33,9 @@ def utc_day():
 
 
 async def consume_creation(session: AsyncSession, user_id: UUID, limit: int):
+    # Zero explicitly disables only conversation-creation throttling.
+    if limit == 0:
+        return
     now = utcnow()
     window = now.replace(minute=0, second=0, microsecond=0)
     statement = _insert(session, ConversationRateWindow).values(

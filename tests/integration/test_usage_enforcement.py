@@ -134,6 +134,17 @@ def test_conversation_creation_rate_limit_is_atomic():
         assert denied.json() == {'error': 'conversation_rate_limited'}
 
 
+def test_disabled_creation_limit_bypasses_an_already_exhausted_window():
+    with make_client(conversation_creations_per_hour=1) as client:
+        assert client.post('/api/v1/conversations', json={}).status_code == 201
+        assert client.post('/api/v1/conversations', json={}).status_code == 429
+        client.app.state.settings.conversation_creations_per_hour = 0
+        for _ in range(12):
+            assert client.post('/api/v1/conversations', json={}).status_code == 201
+        client.app.state.settings.conversation_creations_per_hour = 1
+        assert client.post('/api/v1/conversations', json={}).status_code == 429
+
+
 def test_cost_guard_stops_on_reported_threshold_and_settles_provider_estimate():
     with make_client(
         usage_mode='per_response', cost_guard_enabled=True,

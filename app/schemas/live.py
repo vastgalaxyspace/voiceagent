@@ -16,4 +16,5 @@ class AuthenticatedStart(BaseModel):
     model_config = ConfigDict(extra='forbid')
     type: Literal['start']
     conversation_id: UUID
+    speech_detection: Literal['server', 'client'] = 'server'
     access_token: SecretStr | None = Field(default=None, max_length=128)

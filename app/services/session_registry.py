@@ -90,13 +90,15 @@ class SessionRegistry:
                 and await knowledge.valid(session, conversation.user_id,
                                           conversation.preferences_snapshot.get('knowledge_context')))
 
-    async def attach(self, socket, principal, conversation_id, token):
+    async def attach(self, socket, principal, conversation_id, token, *, speech_detection='server'):
         key = str(conversation_id)
         async with self.lock:
             if self.closing:
                 raise AppError('server_shutting_down', 503)
             current = self.sessions.get(key)
             if current is not None:
+                if current.relay.client_vad != (speech_detection == 'client'):
+                    raise AppError('speech_detection_mismatch', 409)
                 if current.principal.user.id != principal.user.id:
                     raise AppError('conversation_not_found', 404)
                 if current.principal.session.token_hash != principal.session.token_hash:
@@ -153,7 +155,8 @@ class SessionRegistry:
             channel = SessionChannel(session_settings.io_timeout_seconds)
             channel.attach(socket)
             measurements = Measurements(session_settings.gemini_model, session_settings.usage_mode, key)
-            provider = self.state.provider if self.state.provider_injected else GeminiProvider(session_settings)
+            provider = self.state.provider if self.state.provider_injected else GeminiProvider(
+                session_settings, client_vad=speech_detection == 'client')
             output_audio_recorder = (OutputAudioRecorder(
                 session_settings.output_audio_directory, key,
             ) if session_settings.save_output_audio else None)
@@ -182,7 +185,8 @@ class SessionRegistry:
                           on_state=on_state,
                           max_cost_usd=float(allocation.cost_usd) if allocation.cost_usd else None,
                           cost_margin_ratio=float(self.settings.cost_guard_margin_ratio),
-                          output_audio_recorder=output_audio_recorder)
+                          output_audio_recorder=output_audio_recorder,
+                          client_vad=speech_detection == 'client')
             managed = ManagedSession(conversation, principal, channel, relay, stop,
                                      monotonic() + max(0, (conversation.lease_expires_at - utcnow()).total_seconds()),
                                      allocation)

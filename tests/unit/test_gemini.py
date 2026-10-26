@@ -58,7 +58,8 @@ async def test_real_adapter_config_and_context_lifecycle(monkeypatch, tools_enab
     assert detection.end_of_speech_sensitivity.value == 'END_SENSITIVITY_LOW'
     assert detection.prefix_padding_ms == 200
     assert detection.silence_duration_ms == 600
-    assert seen['config'].proactivity.proactive_audio is True
+    assert seen['config'].proactivity is None
+    assert 'proactivity' not in seen['config'].model_dump(exclude_none=True)
     if tools_enabled:
         declarations = seen['config'].tools[0].function_declarations
         assert {item.name for item in declarations} == {'search_knowledge', 'get_knowledge_entry', 'get_usage_allowance'}

@@ -36,6 +36,14 @@ class GeminiConnection:
         async with self.send_lock:
             await self.session.send_realtime_input(audio_stream_end=True)
 
+    async def activity_start(self):
+        async with self.send_lock:
+            await self.session.send_realtime_input(activity_start=types.ActivityStart())
+
+    async def activity_end(self):
+        async with self.send_lock:
+            await self.session.send_realtime_input(activity_end=types.ActivityEnd())
+
     async def send_tool_responses(self, responses):
         async with self.send_lock:
             await self.session.send_tool_response(function_responses=[
@@ -54,8 +62,9 @@ class GeminiConnection:
 
 
 class GeminiProvider:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, client_vad: bool = False):
         self.settings = settings
+        self.client_vad = client_vad
 
     @asynccontextmanager
     async def connect(self, prompt: str, *, resume_handle: str | None = None):
@@ -68,7 +77,8 @@ class GeminiProvider:
             session_resumption=types.SessionResumptionConfig(handle=resume_handle),
             realtime_input_config=types.RealtimeInputConfig(
                 activity_handling=types.ActivityHandling.START_OF_ACTIVITY_INTERRUPTS,
-                automatic_activity_detection=types.AutomaticActivityDetection(
+                automatic_activity_detection=(types.AutomaticActivityDetection(disabled=True)
+                    if self.client_vad else types.AutomaticActivityDetection(
                     disabled=False,
                     start_of_speech_sensitivity=(types.StartSensitivity.START_SENSITIVITY_LOW
                         if self.settings.voice_start_sensitivity == 'low'
@@ -76,7 +86,7 @@ class GeminiProvider:
                     end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_LOW,
                     prefix_padding_ms=self.settings.voice_prefix_padding_ms,
                     silence_duration_ms=self.settings.voice_silence_duration_ms,
-                ),
+                )),
             ),
         )
         # Proactive audio is documented for 3.8 Live on v1beta, not 3.1.

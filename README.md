@@ -4,7 +4,7 @@ An Android voice conversation application planned with Kotlin, a FastAPI backend
 
 ## Voice interruptions and background sound
 
-New and resumed Gemini connections explicitly use automatic speech detection with interruption enabled,
+Clients using server-side detection (including the browser and older Android builds) use automatic speech detection with interruption enabled,
 low speech-start/end sensitivity, 200 ms prefix padding, and 600 ms silence duration. Tune these with
 `VOICE_START_SENSITIVITY` (`low` or `high`), `VOICE_PREFIX_PADDING_MS` (0–500), and
 `VOICE_SILENCE_DURATION_MS` (100–2000). These are initial trial values, not measured guarantees.
@@ -12,9 +12,12 @@ Lower sensitivity reduces accidental starts but can miss soft or very short word
 More confirmation delays genuine interruption; a longer silence allowance delays the reply.
 The relay and browser still discard queued answer audio on every provider interruption.
 
-`VOICE_PROACTIVE_AUDIO=true` enables relevance-based response suppression on `gemini-3.8-live`
-with `v1beta` only; other model/API combinations omit it. Disable it if legitimate requests are
-being ignored. Voice instructions are appended even to published prompts: prioritize stop/wait and
+`VOICE_PROACTIVE_AUDIO=false` is the default: the configured live endpoint was observed rejecting
+the optional `proactivity` setup field with code 1007, preventing every voice session from starting.
+Leave it disabled unless endpoint support has been verified. Explicit opt-in with `true` sends it
+only for `gemini-3.8-live` with `v1beta`; other model/API combinations omit it.
+Normal automatic speech detection and interruption tuning do not require proactivity.
+Voice instructions are appended even to published prompts: prioritize stop/wait and
 new questions, ignore irrelevant sound, and treat standalone “hmm”/“okay” as acknowledgments unless
 they answer a question or confirm a choice. These instructions and proactive audio do not prevent
 all VAD interruptions and cannot undo one after the provider cancels generation. Short acknowledgments,
@@ -35,6 +38,11 @@ Live acoustic behavior has to be checked on the actual device; simulated tests d
 rejection or interruption latency. Playback stutter without interruption events needs separate diagnosis.
 
 ## Current phase
+
+For local testing, `CONVERSATION_CREATIONS_PER_HOUR=0` disables the hourly conversation-start
+limit, including when the current window was already exhausted. Positive values re-enable it
+(default 10). Restart the backend after changing this setting. Daily voice allowance, session
+duration, authentication limits, and single-session admission remain independent.
 
 Phase 8: single-instance production deployment configuration implemented. Includes an HTTPS proxy, a non-root container, file-mounted runtime secrets, strict production settings, bounded authentication/body requests, health checks, administrator drain controls, and backup/restore tooling. Deployment has not been published. The estimated-spend guard remains disabled until live Gemini billing calibration.
 
@@ -100,3 +108,29 @@ The specification uses provisional defaults where product requirements have not 
 7. Optional tools and knowledge — implemented; bounded read-only retrieval, live provider validation pending.
 8. Production deployment — configuration and operations implemented; Docker-host and live rollout verification pending.
 9. Optimization — not started.
+
+## Android Silero speech turns
+
+Aura 1.4.0 requests `speech_detection: "client"` in its authenticated `/ws/live`
+start message. For these sessions only, Gemini automatic activity detection is
+disabled. The Android app runs Silero on echo/noise-processed 16 kHz mono PCM16,
+then sends `speech_start`, binary PCM, and `speech_end` in that order. The relay
+validates the sequence and forwards Gemini `activityStart` / `activityEnd`.
+Clients omitting the new field retain server-side automatic detection. A resumed
+connection must keep the same detection mode; capture buffers are discarded on
+reconnect, mute, and talk-mode changes.
+
+Initial Android tuning lives in `SpeechTurnGate.kt`: 512-sample (32 ms) frames,
+96 ms speech confirmation while idle, 192 ms while assistant playback is active,
+288 ms rolling pre-roll, and 768 ms silence before ending a turn. Silero uses
+NORMAL mode while idle and AGGRESSIVE mode during playback. Hold-to-talk bypasses
+the classifier, with release ending the turn immediately. Local speech starts
+clear playback; provider interruptions still clear any queued output.
+
+Install the updated APK **and restart the backend yourself** before checking this
+feature. Start a new conversation, leave Hold to talk off, and compare speaker
+and headphone operation. Test keyboard clicks, normal/quiet interruptions, short
+"stop" utterances, and pauses within a sentence. Android Logcat tag `AuraAudio`
+reports route/effect status and speech boundaries without logging microphone
+content. TV dialogue remains real speech to VAD; echo suppression remains device
+dependent. Tune only after checking actual false and missed interruptions.
