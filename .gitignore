@@ -20,3 +20,31 @@ backups/
 .aws/
 .codex/
 .agents/
+
+# Local build outputs and temporary frontend copies (keep them on disk).
+artifacts/
+build/
+dist/
+*.apk
+*.aab
+*.apks
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Local recordings, database copies, logs, editor state and coverage.
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+*.log
+*.wav
+*.pcm
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.idea/
+.vscode/
+node_modules/

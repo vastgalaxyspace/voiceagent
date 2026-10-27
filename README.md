@@ -2,6 +2,22 @@
 
 An Android voice conversation application planned with Kotlin, a FastAPI backend, and Gemini Live.
 
+## Conversation history
+
+New voice sessions save user and Aura transcripts in PostgreSQL while audio continues
+through Gemini Live. The Android History screen displays chat messages; connection
+attempts and greeting-only sessions are excluded. Technical reports remain available
+separately. See the [History implementation and API guide](docs/HISTORY_FEATURE.md).
+
+Deploy with migration `0006_conversation_history`, then apply
+`scripts/database_grants.sql` as the database owner before restarting the backend.
+Previous sessions do not have transcripts and cannot be reconstructed.
+
+This repository contains the backend, migrations, deployment scripts, documentation
+and tests. The Android app lives in its own project. Local APKs and temporary frontend
+copies under `artifacts/` are excluded from Git. Keep `.env`, database credentials,
+recordings, reports, backups, virtual environments and signing keys private.
+
 ## Voice interruptions and background sound
 
 Clients using server-side detection (including the browser and older Android builds) use automatic speech detection with interruption enabled,
