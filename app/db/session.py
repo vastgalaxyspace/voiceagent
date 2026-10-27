@@ -54,7 +54,7 @@ class Database:
         async with self.sessions() as session:
             # Validate the migration marker, not merely database reachability.
             version = await session.scalar(text('SELECT version_num FROM alembic_version'))
-            return version == '0005_knowledge_tools'
+            return version == '0006_conversation_history'
 
     async def close(self):
         with anyio.CancelScope(shield=True):

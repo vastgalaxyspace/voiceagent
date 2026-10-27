@@ -50,6 +50,17 @@ class Outbox:
     def reset(self):
         self.items.clear()
 
+    def transcript(self, item):
+        # Coalesce replaceable text updates; captions must never exhaust audio's
+        # bounded queue or terminate an otherwise healthy voice session.
+        self.items = deque(queued for queued in self.items if not (
+            isinstance(queued, dict) and queued.get('type') == item['type']
+            and queued.get('message_id') == item.get('message_id')))
+        if len(self.items) >= self.limit - 4:
+            return  # The durable messages API recovers omitted UI updates.
+        self.items.append(item)
+        self.available.set()
+
     async def get(self):
         while not self.items:
             self.available.clear()
@@ -61,7 +72,7 @@ class Relay:
     def __init__(self, channel, settings: Settings, provider, prompt: str,
                  measurements: Measurements, *, auth_stop=None, auth_seconds=None, on_state=None,
                  max_cost_usd: float | None = None, cost_margin_ratio: float = 0, tool_session=None,
-                 output_audio_recorder=None, client_vad=False):
+                 output_audio_recorder=None, client_vad=False, transcripts=None):
         self.channel, self.settings, self.provider = channel, settings, provider
         self.prompt, self.measurements = prompt, measurements
         self.outbox = Outbox()
@@ -81,6 +92,7 @@ class Relay:
         self.output_audio_recorder = output_audio_recorder
         self.client_vad = client_vad
         self.client_speaking = False
+        self.transcripts = transcripts
 
     async def state(self, value):
         if self.on_state is not None:
@@ -184,12 +196,20 @@ class Relay:
             async with asyncio.timeout(self.settings.io_timeout_seconds):
                 self.measurements.mark_input_activity()
                 if audio == 'speech_start':
+                    if self.transcripts:
+                        self.transcripts.input_started()
                     await connection.activity_start()
                 elif audio == 'speech_end':
+                    if self.transcripts:
+                        self.transcripts.input_ended()
                     await connection.activity_end()
                 elif audio is None:
+                    if self.transcripts:
+                        self.transcripts.input_ended()
                     await connection.end_audio()
                 else:
+                    if self.transcripts and not self.client_vad:
+                        self.transcripts.input_started()
                     await connection.send_audio(audio)
                     self.measurements.input_bytes += len(audio)
                     self.measurements.relay_ms.append(round((monotonic() - received) * 1000, 3))
@@ -211,6 +231,10 @@ class Relay:
                 # an older checkpoint could silently omit in-flight conversation.
                 self._resume_handle = update.new_handle if update.resumable and update.new_handle else None
             content = message.server_content
+            if content and self.transcripts:
+                if content.model_turn and not content.interrupted:
+                    self.transcripts.output_started()
+                self.transcripts.receive(content)
             if content and (content.model_turn or content.interrupted):
                 self.measurements.mark_output_activity()
             if content and content.turn_complete:
@@ -347,6 +371,8 @@ class Relay:
                     # Cross-connection usage counter semantics are not calibrated.
                     raise SessionEnd('cost_tracking_unavailable') from None
                 self.flush_audio()
+                if self.transcripts:
+                    self.transcripts.connection_gap()
                 await self.state('reconnecting')
                 if not self._resume_handle:
                     raise SessionEnd('provider_go_away' if reason == 'provider_go_away' else 'resume_unavailable') from None
@@ -416,6 +442,8 @@ class Relay:
                         self.tool_session.clear()
                     if self.output_audio_recorder is not None:
                         await self.save_output_audio(partial=True)
+                    if self.transcripts is not None:
+                        await self.transcripts.close()
         if reason == 'cost_tracking_unavailable':
             self.measurements.incomplete_breakdown = True
         return self.measurements.summary(reason)

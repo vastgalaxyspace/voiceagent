@@ -20,6 +20,8 @@ from app.services.prompt_builder import compose_prompt
 from app.services.session_channel import SessionChannel
 from app.services.usage import Measurements
 from app.storage.output_audio import OutputAudioRecorder
+from app.services.transcripts import TranscriptCollector
+from app.repositories import transcripts as transcript_repository
 
 logger = logging.getLogger('voiceagent')
 
@@ -187,6 +189,9 @@ class SessionRegistry:
                           cost_margin_ratio=float(self.settings.cost_guard_margin_ratio),
                           output_audio_recorder=output_audio_recorder,
                           client_vad=speech_detection == 'client')
+            relay.transcripts = TranscriptCollector(self.database, conversation.id, self.owner, relay.outbox.transcript,
+                                                    client_vad=speech_detection == 'client')
+            relay.transcripts.start()
             managed = ManagedSession(conversation, principal, channel, relay, stop,
                                      monotonic() + max(0, (conversation.lease_expires_at - utcnow()).total_seconds()),
                                      allocation)
@@ -238,6 +243,11 @@ class SessionRegistry:
                     async with self.database.sessions.begin() as session:
                         saved = await repository.finish(session, managed.conversation.id, report, self.owner)
                         if saved:
+                            row = await session.get(type(managed.conversation), managed.conversation.id)
+                            await transcript_repository.metadata(
+                                session, row, incomplete=managed.relay.transcripts.incomplete
+                                if managed.relay.transcripts else False,
+                            )
                             await usage_limits.settle(
                                 session, managed.conversation.id, report.get('duration_seconds'),
                                 report.get('estimated_model_cost_usd'),

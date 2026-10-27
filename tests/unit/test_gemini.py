@@ -46,7 +46,7 @@ async def test_real_adapter_config_and_context_lifecycle(monkeypatch, tools_enab
     async with GeminiProvider(settings(context_compression=True, live_tools_enabled=tools_enabled)).connect('test instructions'):
         pass
     assert seen['model'] == 'gemini-3.8-live'
-    assert seen['config'].input_audio_transcription is None
+    assert seen['config'].input_audio_transcription is not None
     assert seen['config'].session_resumption.handle is None
     assert seen['config'].context_window_compression.sliding_window.target_tokens == 8000
     assert seen['closed']

@@ -92,11 +92,20 @@ class Conversation(Base):
     report: Mapped[dict | None] = mapped_column(JSON)
     runtime_owner: Mapped[str | None] = mapped_column(String(64))
     lease_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    title: Mapped[str] = mapped_column(String(120), default='', server_default='')
+    preview: Mapped[str] = mapped_column(String(240), default='', server_default='')
+    message_count: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    last_message_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    has_user_message: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
+    transcript_status: Mapped[str] = mapped_column(String(16), default='unavailable', server_default='unavailable')
     __table_args__ = (
         CheckConstraint("status IN ('created', 'connecting', 'active', 'reconnecting', 'ended', 'failed')", name='status'),
         CheckConstraint("status NOT IN ('connecting', 'active', 'reconnecting') OR "
                         "(runtime_owner IS NOT NULL AND lease_expires_at IS NOT NULL)", name='live_lease'),
         Index('ix_conversations_owner_created', 'user_id', 'created_at', 'id'),
+        Index('ix_conversations_history', 'user_id', 'has_user_message', 'created_at', 'id'),
+        CheckConstraint("transcript_status IN ('unavailable', 'available', 'partial')", name='transcript_status'),
+        CheckConstraint('message_count >= 0', name='message_count'),
     )
 
 
@@ -109,6 +118,27 @@ Index(
 Index('ix_conversations_live_lease', Conversation.lease_expires_at,
       postgresql_where=Conversation.status.in_(['connecting', 'active', 'reconnecting']),
       sqlite_where=Conversation.status.in_(['connecting', 'active', 'reconnecting']))
+
+
+class ConversationMessage(Base):
+    __tablename__ = 'conversation_messages'
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    conversation_id: Mapped[UUID] = mapped_column(ForeignKey('conversations.id', ondelete='CASCADE'))
+    sequence: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)
+    state: Mapped[str] = mapped_column(String(16))
+    revision: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    __table_args__ = (
+        UniqueConstraint('conversation_id', 'sequence', name='uq_conversation_messages_sequence'),
+        CheckConstraint("role IN ('user', 'assistant')", name='role'),
+        CheckConstraint("state IN ('partial', 'complete', 'interrupted')", name='state'),
+        CheckConstraint('sequence > 0 AND revision > 0', name='ordering'),
+        CheckConstraint('length(trim(text)) > 0', name='nonempty'),
+    )
 
 
 class DailyUsage(Base):

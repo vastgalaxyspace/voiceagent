@@ -74,6 +74,8 @@ class GeminiProvider:
         )
         config = types.LiveConnectConfig(
             response_modalities=['AUDIO'], system_instruction=prompt,
+            input_audio_transcription=types.AudioTranscriptionConfig(),
+            output_audio_transcription=types.AudioTranscriptionConfig(),
             session_resumption=types.SessionResumptionConfig(handle=resume_handle),
             realtime_input_config=types.RealtimeInputConfig(
                 activity_handling=types.ActivityHandling.START_OF_ACTIVITY_INTERRUPTS,

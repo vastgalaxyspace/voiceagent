@@ -12,4 +12,7 @@ GRANT SELECT ON prompt_versions, alembic_version TO voiceagent_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON user_memories TO voiceagent_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON knowledge_entries TO voiceagent_app;
 GRANT SELECT, UPDATE ON knowledge_state TO voiceagent_app;
+-- Voice transcript history and owner-checked conversation deletion.
+GRANT SELECT, INSERT, UPDATE, DELETE ON conversation_messages TO voiceagent_app;
+GRANT DELETE ON conversations TO voiceagent_app;
 -- Runtime cannot rewrite system prompt versions or migration history.

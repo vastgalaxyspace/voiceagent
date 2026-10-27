@@ -18,10 +18,12 @@ async def owned(session: AsyncSession, user_id: UUID, conversation_id: UUID) -> 
     ))
 
 
-async def list_owned(session: AsyncSession, user_id: UUID, limit: int, offset: int):
-    return list((await session.scalars(select(Conversation).options(defer(Conversation.report)).where(
-        Conversation.user_id == user_id,
-    ).order_by(Conversation.created_at.desc(), Conversation.id.desc()).limit(limit).offset(offset))).all())
+async def list_owned(session: AsyncSession, user_id: UUID, limit: int, offset: int, *, history=False):
+    query = select(Conversation).options(defer(Conversation.report)).where(Conversation.user_id == user_id)
+    if history:
+        query = query.where(Conversation.has_user_message.is_(True))
+    return list((await session.scalars(query.order_by(
+        Conversation.created_at.desc(), Conversation.id.desc()).limit(limit).offset(offset))).all())
 
 
 async def claim(session: AsyncSession, user_id: UUID, conversation_id: UUID,
@@ -80,7 +82,7 @@ async def recover_expired(session: AsyncSession) -> int:
         result = await session.execute(update(Conversation).where(
             Conversation.id == conversation_id, Conversation.status.in_(LIVE_STATES),
             Conversation.lease_expires_at <= now,
-        ).values(status='failed', ended_at=now, end_reason='runtime_lost', report={
+        ).values(status='failed', ended_at=now, end_reason='runtime_lost', transcript_status='partial', report={
             'session_id': str(conversation_id), 'end_reason': 'runtime_lost',
             'recovered': True, 'usage_complete': False, 'estimated_model_cost_usd': None,
         }))
