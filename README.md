@@ -109,6 +109,28 @@ Windows convenience commands (from the project root):
 .\scripts\check.ps1
 ```
 
+### Using the Android app through ngrok
+
+Local mode accepts dynamically generated tunnel Host names, so a special host-rewrite
+policy is not required. Start the backend on the laptop, then start ngrok:
+
+```powershell
+.\scripts\run.ps1
+ngrok http 8000
+```
+
+Copy the ngrok **HTTPS origin** into the app's backend URL field, for example
+`https://example-name.ngrok-free.app`. Do not append `/docs`, `/api/v1`, or `/ws/live`;
+the app adds the required paths itself. The app may run on a different phone or laptop,
+but ngrok and the backend must be running on the same backend laptop.
+
+Allowing all Host names in local mode does not remove login protection or production
+security checks. The development server still binds to `127.0.0.1`, accepts the local
+ngrok agent as its proxy, and production mode continues to allow only the configured
+`PUBLIC_ORIGIN`. Never commit `.env`, the Gemini key, database passwords, or the ngrok
+authentication token. A newly cloned laptop must create its own `.env`, install the
+dependencies, apply migrations, and be able to reach its configured PostgreSQL database.
+
 `app/` contains the backend, `tools/voice_client/` contains the temporary browser harness, and `tests/` separates unit, integration, and JavaScript tests. The ASGI entry point and existing API URLs remain unchanged.
 
 The specification uses provisional defaults where product requirements have not yet been confirmed. Performance and cost figures are targets to validate, not measured results.

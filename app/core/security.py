@@ -9,13 +9,17 @@ from fastapi import WebSocket
 from fastapi.responses import JSONResponse
 
 LOCAL_CLIENTS = frozenset({'127.0.0.1', '::1', 'testclient'})
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'testserver']
+LOCAL_ALLOWED_HOSTS = ['*']
 AUTH_PATHS = frozenset({'/api/v1/auth/login', '/api/v1/auth/register', '/ws/live'})
 
 
 def allowed_hosts(settings):
     if settings.environment == 'local':
-        return ALLOWED_HOSTS
+        # Local tunnel hostnames (for example, ngrok) are generated dynamically.
+        # The server still binds to loopback and TransportMiddleware still admits
+        # only a local proxy/client, so this relaxes Host validation without
+        # exposing the development server directly to the LAN.
+        return LOCAL_ALLOWED_HOSTS
     return [urlsplit(settings.public_origin).hostname, '127.0.0.1', 'localhost']
 
 
