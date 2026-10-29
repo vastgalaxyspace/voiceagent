@@ -49,6 +49,7 @@ def compose_prompt(start: StartMessage, *, instructions: str = SYSTEM_PROMPT,
                 'language': start.language, 'conversation_goal': start.goal,
                 'response_detail': response_detail,
                 'display_name': personalization['display_name'],
+                'pronouns': personalization.get('pronouns', ''),
                 'custom_instructions': personalization['custom_instructions'],
                 'saved_memories': memories or [],
             }, ensure_ascii=False, separators=(',', ':')))

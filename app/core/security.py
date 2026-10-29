@@ -67,7 +67,7 @@ class TransportMiddleware:
         self.app, self.settings, self.operations = app, settings, operations
         self.admission = Admission(settings)
         self.logger = logging.getLogger('voiceagent.http')
-        if settings.environment == 'production' and not self.logger.handlers:
+        if settings.environment != 'local' and not self.logger.handlers:
             handler = logging.StreamHandler()
             handler.setFormatter(logging.Formatter('%(message)s'))
             self.logger.addHandler(handler)
@@ -78,7 +78,8 @@ class TransportMiddleware:
         if scope['type'] not in ('http', 'websocket'):
             return await self.app(scope, receive, send)
         http = scope['type'] == 'http'
-        production = self.settings.environment == 'production'
+        # Both public environments enforce HTTPS, Origin, rate and body limits.
+        production = self.settings.environment != 'local'
         started = monotonic()
         status = 500
         admitted = False

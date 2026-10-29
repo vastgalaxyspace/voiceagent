@@ -26,7 +26,9 @@ class GeminiConnection:
         async with self.send_lock:
             await self.session.send_client_content(
                 turns={'role': 'user', 'parts': [{'text':
-                    'Begin this new voice conversation now. Say hello warmly in the '
+                    'Begin this voice conversation now. If prior conversation context is supplied, '
+                    'briefly offer to continue its unfinished topic instead of a generic greeting. '
+                    'Otherwise say hello warmly in the '
                     'preferred conversation language, then briefly ask how you can help. '
                     'Keep the greeting to one or two short sentences.'}]},
                 turn_complete=True,
@@ -100,8 +102,8 @@ class GeminiProvider:
             config.tools = declarations()
         if self.settings.context_compression:
             config.context_window_compression = types.ContextWindowCompressionConfig(
-                trigger_tokens=16000,
-                sliding_window=types.SlidingWindow(target_tokens=8000),
+                trigger_tokens=self.settings.context_trigger_tokens,
+                sliding_window=types.SlidingWindow(target_tokens=self.settings.context_target_tokens),
             )
         stack = AsyncExitStack()
         try:

@@ -28,6 +28,8 @@ class ConversationResponse(BaseModel):
     last_message_at: datetime | None = None
     has_user_message: bool = False
     transcript_status: str = 'unavailable'
+    continued_from_id: UUID | None = None
+    summary_version: int = 0
 
 
 class ConversationPage(BaseModel):

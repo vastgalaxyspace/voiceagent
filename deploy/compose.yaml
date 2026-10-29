@@ -35,6 +35,11 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-live}
       LIVE_TOOLS_ENABLED: ${LIVE_TOOLS_ENABLED:-false}
       USAGE_MODE: ${USAGE_MODE:-unknown}
+      MAX_ACTIVE_SESSIONS: ${MAX_ACTIVE_SESSIONS:-1}
+      MAX_GLOBAL_SESSIONS: ${MAX_GLOBAL_SESSIONS:-100}
+      CONTEXT_COMPRESSION: ${CONTEXT_COMPRESSION:-false}
+      CONTEXT_TRIGGER_TOKENS: ${CONTEXT_TRIGGER_TOKENS:-16000}
+      CONTEXT_TARGET_TOKENS: ${CONTEXT_TARGET_TOKENS:-8000}
       COST_GUARD_ENABLED: 'false'
     secrets: [database_url, gemini_api_key]
     healthcheck:
@@ -46,6 +51,19 @@ services:
     networks:
       edge:
         ipv4_address: 172.30.8.3
+
+  summary-worker:
+    <<: *runtime
+    profiles: [summaries]
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: local
+      VOICEAGENT_SECRETS_DIR: /run/secrets
+      SUMMARY_MODEL: ${SUMMARY_MODEL:-}
+      SUMMARY_MIN_MESSAGES: ${SUMMARY_MIN_MESSAGES:-12}
+    secrets: [database_url, gemini_api_key]
+    command: [python, -m, scripts.summarize_conversations]
+    networks: [edge]
 
   proxy:
     image: caddy:2.11.7-alpine

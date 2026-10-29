@@ -1,5 +1,17 @@
 # Voice Agent
 
+For public ngrok access, start `ngrok http 8000`, then run
+`.\scripts\run.ps1 -PublicOrigin https://YOUR-HOST.ngrok-free.dev`.
+This selects tunnel mode, accepts remote users, and enforces HTTPS, the configured
+hostname/Origin, authentication rate limits and request-size limits. Keep ngrok's
+original Host/Origin; do not use the legacy header-rewrite policy. Alternatively
+set `ENVIRONMENT=tunnel` and `PUBLIC_ORIGIN` in `.env`, then use `scripts/run.ps1`.
+Update PUBLIC_ORIGIN whenever your tunnel URL changes. Production hosting still
+uses `ENVIRONMENT=production` and the deployment runbook.
+
+See [context management and continuation](docs/context-management.md) for migration
+0007, the Continue API, optional background summaries and session-capacity settings.
+
 An Android voice conversation application planned with Kotlin, a FastAPI backend, and Gemini Live.
 
 ## Conversation history

@@ -1,6 +1,7 @@
 """Explicit user memory, consent, prompt budgets and revocable context manifests."""
 import hashlib
 import json
+import re
 
 from sqlalchemy.exc import IntegrityError
 
@@ -32,8 +33,12 @@ def select_context(rows, settings):
     return chosen
 
 
-async def snapshot(session, profile, settings):
+async def snapshot(session, profile, settings, goal=None):
     rows = await repository.list_owned(session, profile.user_id) if profile.memory_enabled else []
+    terms = set(re.findall(r'\w+', (goal or profile.goal).lower())) - {'the', 'and', 'for', 'with', 'a', 'i', 'to', 'my'}
+    if terms:
+        rows.sort(key=lambda row: -len(terms.intersection(
+            re.findall(r'\w+', (row.key + ' ' + row.content).lower()))))
     selected = select_context(rows, settings)
     # Historical conversation JSON holds identifiers and hashes, never fact text.
     return {

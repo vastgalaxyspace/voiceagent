@@ -25,6 +25,7 @@ class UserPreferences(Base):
     response_detail: Mapped[str] = mapped_column(String(16), default='brief')
     goal: Mapped[str] = mapped_column(String(500), default='')
     display_name: Mapped[str] = mapped_column(String(80), default='')
+    pronouns: Mapped[str] = mapped_column(String(80), default='', server_default='')
     custom_instructions: Mapped[str] = mapped_column(String(1000), default='')
     conversation_mode: Mapped[str] = mapped_column(String(32), default='general')
     memory_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -98,6 +99,10 @@ class Conversation(Base):
     last_message_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     has_user_message: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
     transcript_status: Mapped[str] = mapped_column(String(16), default='unavailable', server_default='unavailable')
+    continued_from_id: Mapped[UUID | None] = mapped_column(ForeignKey('conversations.id', ondelete='SET NULL'), index=True)
+    summary: Mapped[str] = mapped_column(Text, default='', server_default='')
+    summary_through_sequence: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
+    summary_version: Mapped[int] = mapped_column(Integer, default=0, server_default='0')
     __table_args__ = (
         CheckConstraint("status IN ('created', 'connecting', 'active', 'reconnecting', 'ended', 'failed')", name='status'),
         CheckConstraint("status NOT IN ('connecting', 'active', 'reconnecting') OR "

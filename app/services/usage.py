@@ -22,6 +22,7 @@ class Measurements:
         self.tokens = {}
         self.incomplete_breakdown = False
         self.previous = {}
+        self.prompt_bytes = 0
         self.relay_ms = deque(maxlen=2048)
         self.report = None
         self.provider_reconnects = 0
@@ -130,6 +131,7 @@ class Measurements:
         self.report = {
             'session_id': self.id, 'started_at': self.started_at,
             'model': self.model, 'end_reason': reason,
+            'system_prompt_bytes': self.prompt_bytes,
             'duration_seconds': round(monotonic() - self.started, 3),
             'ready_ms': self.ready_ms,
             'input_audio_seconds': round(self.input_bytes / 32000, 3),

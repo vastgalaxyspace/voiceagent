@@ -43,6 +43,13 @@ async def get(conversation_id: UUID, principal: CurrentUser, database=Depends(ge
     return await conversations.get_owned(database, principal.user.id, conversation_id)
 
 
+@router.post('/{conversation_id}/continue', response_model=ConversationResponse, status_code=201)
+async def continue_conversation(conversation_id: UUID, body: ConversationCreate, principal: CurrentUser,
+                                request: Request, database=Depends(get_database)):
+    return await conversations.create(database, request.app.state.settings, principal.user.id, body.goal,
+                                      use_tools=body.use_tools, continued_from_id=conversation_id)
+
+
 @router.get('/{conversation_id}/report')
 async def report(conversation_id: UUID, principal: CurrentUser, database=Depends(get_database)):
     conversation = await conversations.get_owned(database, principal.user.id, conversation_id)

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         secrets_dir=os.environ.get('VOICEAGENT_SECRETS_DIR'),
     )
 
-    environment: Literal['local', 'production'] = 'local'
+    environment: Literal['local', 'tunnel', 'production'] = 'local'
     public_origin: str = ''
     registration_enabled: bool = True
     enable_api_docs: bool = True
@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     provider_setup_seconds: float = Field(default=20, gt=0, le=60)
     io_timeout_seconds: float = Field(default=5, gt=0, le=10)
     context_compression: bool = False
+    context_trigger_tokens: int = Field(default=16000, ge=2048, le=100000)
+    context_target_tokens: int = Field(default=8000, ge=1024, le=50000)
+    max_active_sessions: int = Field(default=1, ge=1, le=1000)
+    max_global_sessions: int = Field(default=100, ge=1, le=10000)
+    continuation_max_bytes: int = Field(default=12000, ge=1024, le=32000)
+    summary_model: str = ''
+    summary_min_messages: int = Field(default=12, ge=2, le=100)
     save_reports: bool = False
     reports_directory: Path = REPORTS_ROOT
     save_output_audio: bool = False
@@ -81,6 +88,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def validate_lease_timing(self):
+        if self.environment == 'tunnel':
+            if not self.public_origin:
+                raise ValueError('Tunnel access requires PUBLIC_ORIGIN')
+            if self.save_output_audio or self.save_reports:
+                raise ValueError('Tunnel access requires local audio and report files disabled')
+        if self.context_target_tokens >= self.context_trigger_tokens:
+            raise ValueError('Context target must be smaller than compression trigger')
         if self.environment == 'production':
             if not self.public_origin:
                 raise ValueError('Production requires PUBLIC_ORIGIN')

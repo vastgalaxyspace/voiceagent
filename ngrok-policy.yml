@@ -1,7 +1,3 @@
-on_http_request:
-  - actions:
-      - type: add-headers
-        config:
-          headers:
-            host: localhost:8000
-            origin: http://localhost:8000
+# Preserve the original public Host and Origin. Rewriting them to localhost
+# conflicts with tunnel/production PUBLIC_ORIGIN validation.
+on_http_request: []

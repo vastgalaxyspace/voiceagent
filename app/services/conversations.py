@@ -3,6 +3,7 @@ import json
 from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, func, text
 
 from app.core.errors import AppError
 from app.core.pricing import RATES
@@ -19,10 +20,17 @@ def fingerprint(instructions: str, version: str, preferences: dict, configuratio
     return hashlib.sha256(serialized.encode()).hexdigest()
 
 
-async def create(database, settings, user_id: UUID, goal: str | None, *, use_tools: bool = False):
+async def create(database, settings, user_id: UUID, goal: str | None, *, use_tools: bool = False,
+                 continued_from_id: UUID | None = None):
     if use_tools and not settings.live_tools_enabled:
         raise AppError('tools_disabled', 409)
     async with database.sessions.begin() as session:
+        if continued_from_id is not None:
+            parent = await conversations.owned(session, user_id, continued_from_id)
+            if parent is None:
+                raise AppError('conversation_not_found', 404)
+            if parent.status not in ('ended', 'failed'):
+                raise AppError('conversation_still_active', 409)
         await usage_limits.consume_creation(session, user_id, settings.conversation_creations_per_hour)
         prompt = await prompts.get(session, settings.active_prompt_version)
         if prompt is None:
@@ -31,18 +39,21 @@ async def create(database, settings, user_id: UUID, goal: str | None, *, use_too
         snapshot = {'language': profile.language, 'response_detail': profile.response_detail,
                     'goal': profile.goal if goal is None else goal,
                     'personalization_version': 1,
-                    'display_name': profile.display_name, 'custom_instructions': profile.custom_instructions,
+                    'display_name': profile.display_name, 'pronouns': profile.pronouns,
+                    'custom_instructions': profile.custom_instructions,
                     'conversation_mode': profile.conversation_mode,
-                    'memory_context': await memories.snapshot(session, profile, settings)}
+                    'memory_context': await memories.snapshot(session, profile, settings, goal)}
         if use_tools:
             snapshot['knowledge_context'] = await knowledge.context(session, user_id)
         configuration = {key: getattr(settings, key) for key in (
             'gemini_model', 'gemini_api_version', 'session_max_seconds',
             'session_idle_seconds', 'context_compression', 'usage_mode',
+            'context_trigger_tokens', 'context_target_tokens',
         )}
         configuration.update(live_tools_enabled=use_tools, tool_policy_version=settings.tool_policy_version)
         conversation = Conversation(
-            user_id=user_id, prompt_version=prompt.version, preferences_snapshot=snapshot,
+            user_id=user_id, continued_from_id=continued_from_id,
+            prompt_version=prompt.version, preferences_snapshot=snapshot,
             configuration_snapshot=configuration,
             configuration_fingerprint=fingerprint(prompt.instructions, prompt.version, snapshot, configuration),
         )
@@ -65,6 +76,12 @@ async def claim(database, user_id: UUID, conversation_id: UUID, *, runtime_owner
                 include_memories: bool = False):
     try:
         async with database.sessions.begin() as session:
+            if settings and session.bind.dialect.name == 'postgresql':
+                await session.execute(text('SELECT pg_advisory_xact_lock(74190523)'))
+                active = await session.scalar(select(func.count()).select_from(Conversation).where(
+                    Conversation.status.in_(('connecting', 'active', 'reconnecting'))))
+                if active >= settings.max_global_sessions:
+                    raise AppError('session_capacity_reached', 409)
             existing = await conversations.owned(session, user_id, conversation_id)
             if existing is None:
                 raise AppError('conversation_not_found', 404)
